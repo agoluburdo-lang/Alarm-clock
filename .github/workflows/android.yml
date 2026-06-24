@@ -24,18 +24,23 @@ jobs:
       # 3. Устанавливаем зависимости и собираем веб-версию (React + Vite)
       - name: Install Dependencies & Build Web
         run: |
-          npm ci
+          npm install
           npm run build
 
       # 4. Инициализируем Capacitor и добавляем платформу Android
       - name: Add Android Platform via Capacitor
         run: |
-          npx cap add android
+          if [ ! -d "android" ]; then
+            npx cap add android
+          else
+            echo "Android directory already exists, skipping 'cap add android'."
+          fi
           npx cap sync
 
       # 5. Настраиваем WebView в MainActivity для автоматического воспроизведения звука (без кликов!)
       - name: Disable Media Playback User Gesture Requirement
         run: |
+          mkdir -p android/app/src/main/java/com/minimalist/alarmclock
           cat << 'EOF' > android/app/src/main/java/com/minimalist/alarmclock/MainActivity.java
           package com.minimalist.alarmclock;
 
