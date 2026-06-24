@@ -1,0 +1,6 @@
+{
+  "name": "Alarm Clock",
+  "description": "A sleek, minimalist, and beautiful alarm clock app with customizable synthesis alarm tones, snooze settings, and local persistence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
