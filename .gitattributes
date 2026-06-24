@@ -1,0 +1,6 @@
+# Treat jar and other binary assets as binary to prevent line-ending conversion corruption
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
