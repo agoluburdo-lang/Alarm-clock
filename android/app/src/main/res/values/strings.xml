@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Minimalist Alarm Clock</string>
+    <string name="title_activity_main">Minimalist Alarm Clock</string>
+    <string name="package_name">com.minimalist.alarmclock</string>
+    <string name="custom_url_scheme">com.minimalist.alarmclock</string>
+</resources>
