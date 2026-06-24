@@ -80,7 +80,9 @@ jobs:
 
       # 7. Предоставляем права на выполнение Gradle Wrapper
       - name: Grant Execute Permission for Gradle
-        run: chmod +x android/gradlew
+        run: |
+          sed -i 's/\r$//' android/gradlew
+          chmod +x android/gradlew
 
       # 8. Компилируем готовый отладочный APK (Debug APK)
       # Отладочный APK не требует цифровой подписи (keystore) и сразу готов к установке на телефон
