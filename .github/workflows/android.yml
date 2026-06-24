@@ -94,7 +94,7 @@ jobs:
       - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew clean assembleDebug --no-daemon --console=plain --stacktrace
 
       # 9. Сохраняем и публикуем готовый APK файл в артефактах GitHub
       - name: Upload Android APK Artifact
