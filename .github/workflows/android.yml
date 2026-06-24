@@ -49,6 +49,7 @@ jobs:
           import android.os.Bundle;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
+          import com.getcapacitor.Bridge;
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
@@ -61,10 +62,12 @@ jobs:
               public void onStart() {
                   super.onStart();
                   // Отключаем обязательное требование кликов по экрану для воспроизведения звуков будильника
-                  WebView webView = this.getBridge().getWebView();
-                  if (webView != null) {
-                      WebSettings settings = webView.getSettings();
-                      settings.setMediaPlaybackRequiresUserGesture(false);
+                  if (this.bridge != null) {
+                      WebView webView = this.bridge.getWebView();
+                      if (webView != null) {
+                          WebSettings settings = webView.getSettings();
+                          settings.setMediaPlaybackRequiresUserGesture(false);
+                      }
                   }
               }
           }
@@ -81,7 +84,7 @@ jobs:
       # 7. Восстанавливаем оригинальный gradle-wrapper.jar для предотвращения его повреждения при Git-клонировании
       - name: Restore Gradle Wrapper Jar
         run: |
-          curl -sL -o android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.14.3/gradle/wrapper/gradle-wrapper.jar
+          curl -sL -o android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.12.1/gradle/wrapper/gradle-wrapper.jar
 
       # 8. Предоставляем права на выполнение Gradle Wrapper
       - name: Grant Execute Permission for Gradle
