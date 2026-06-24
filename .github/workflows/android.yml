@@ -78,7 +78,12 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # 7. Предоставляем права на выполнение Gradle Wrapper
+      # 7. Восстанавливаем оригинальный gradle-wrapper.jar для предотвращения его повреждения при Git-клонировании
+      - name: Restore Gradle Wrapper Jar
+        run: |
+          curl -sL -o android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.14.3/gradle/wrapper/gradle-wrapper.jar
+
+      # 8. Предоставляем права на выполнение Gradle Wrapper
       - name: Grant Execute Permission for Gradle
         run: |
           sed -i 's/\r$//' android/gradlew
