@@ -19,12 +19,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       # 3. Устанавливаем зависимости и собираем веб-версию (React + Vite)
       - name: Install Dependencies & Build Web
         run: |
-          npm install
+          npm install --legacy-peer-deps
           npm run build
 
       # 4. Инициализируем Capacitor и добавляем платформу Android
@@ -41,6 +40,8 @@ jobs:
       - name: Disable Media Playback User Gesture Requirement
         run: |
           mkdir -p android/app/src/main/java/com/minimalist/alarmclock
+          # Удаляем стандартный MainActivity.kt (Kotlin) для предотвращения дублирования классов с MainActivity.java
+          rm -f android/app/src/main/java/com/minimalist/alarmclock/MainActivity.kt
           cat << 'EOF' > android/app/src/main/java/com/minimalist/alarmclock/MainActivity.java
           package com.minimalist.alarmclock;
 
@@ -85,7 +86,7 @@ jobs:
       - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
 
       # 9. Сохраняем и публикуем готовый APK файл в артефактах GitHub
       - name: Upload Android APK Artifact
