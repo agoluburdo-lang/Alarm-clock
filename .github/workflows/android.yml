@@ -79,30 +79,19 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '21'
-          cache: 'gradle'
 
-      # 7. Загружаем чистый и неповрежденный Gradle Wrapper Jar напрямую от Gradle (избегая повреждения Git)
-      - name: Download Pristine Gradle Wrapper Jar
-        run: |
-          JAR_PATH="android/gradle/wrapper/gradle-wrapper.jar"
-          mkdir -p android/gradle/wrapper
-          rm -f "$JAR_PATH"
-          echo "Downloading pristine gradle-wrapper.jar..."
-          curl -sL -o "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.12.1/gradle/wrapper/gradle-wrapper.jar
-          echo "Pristine Gradle Wrapper Jar downloaded successfully."
-
-      # 8. Предоставляем права на выполнение Gradle Wrapper
-      - name: Grant Execute Permission for Gradle
-        run: |
-          sed -i 's/\r$//' android/gradlew
-          chmod +x android/gradlew
+      # 7. Устанавливаем Gradle напрямую
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.12.1'
 
       # 8. Компилируем готовый отладочный APK (Debug APK)
       # Отладочный APK не требует цифровой подписи (keystore) и сразу готов к установке на телефон
       - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew clean assembleDebug --no-daemon --console=plain --stacktrace
+          gradle clean assembleDebug --no-daemon --console=plain --stacktrace
 
       # 9. Сохраняем и публикуем готовый APK файл в артефактах GitHub
       - name: Upload Android APK Artifact
