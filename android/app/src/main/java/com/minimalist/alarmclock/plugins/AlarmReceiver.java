@@ -25,8 +25,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         activityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags |= PendingIntent.FLAG_MUTABLE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
         }
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(context, id, activityIntent, flags);
 
@@ -40,12 +40,13 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(context.getApplicationInfo().icon)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(label != null ? label : "Будильник")
                 .setContentText("Пора просыпаться!")
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setFullScreenIntent(fullScreenPendingIntent, true)
+                .setContentIntent(fullScreenPendingIntent)
                 .setOngoing(true)
                 .setAutoCancel(false);
 

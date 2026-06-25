@@ -184,6 +184,7 @@ export default function App() {
       if (typeof window !== 'undefined' && (window as any).Capacitor) {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
         const isAndroid = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
+        const now = new Date();
 
         if (isAndroid) {
             // Unschedule all existing alarms
@@ -235,7 +236,6 @@ export default function App() {
         }
 
         const notificationsToSchedule: any[] = [];
-        const now = new Date();
 
         updatedAlarms.forEach((alarm) => {
           if (!alarm.enabled) return;

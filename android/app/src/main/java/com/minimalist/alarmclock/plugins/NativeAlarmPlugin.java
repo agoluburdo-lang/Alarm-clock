@@ -71,8 +71,8 @@ public class NativeAlarmPlugin extends Plugin {
         intent.putExtra("label", label);
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags |= PendingIntent.FLAG_MUTABLE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
         }
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags);
@@ -105,8 +105,8 @@ public class NativeAlarmPlugin extends Plugin {
 
         Intent intent = new Intent(context, AlarmReceiver.class);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags |= PendingIntent.FLAG_MUTABLE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
         }
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags);
