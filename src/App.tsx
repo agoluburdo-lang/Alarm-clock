@@ -104,6 +104,15 @@ export default function App() {
     // Register Capacitor Notification Actions
     if (typeof window !== 'undefined' && (window as any).Capacitor) {
       import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+        LocalNotifications.createChannel({
+          id: 'alarms',
+          name: 'Будильники',
+          description: 'Уведомления будильника',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+        }).catch(console.error);
+
         LocalNotifications.registerActionTypes({
           types: [
             {
@@ -111,12 +120,14 @@ export default function App() {
               actions: [
                 {
                   id: 'snooze',
-                  title: 'Отложить'
+                  title: 'Отложить',
+                  foreground: false
                 },
                 {
                   id: 'dismiss',
                   title: 'Выключить',
-                  destructive: true
+                  destructive: true,
+                  foreground: false
                 }
               ]
             }
@@ -197,6 +208,7 @@ export default function App() {
               id: alarmIdNum,
               schedule: { at: target, allowWhileIdle: true },
               actionTypeId: 'ALARM_ACTIONS',
+              channelId: 'alarms',
             });
           } else {
             // Repeating alarm - schedule for the next week
@@ -216,6 +228,7 @@ export default function App() {
                 id: alarmIdNum + dayOfWeek, // Unique ID per day
                 schedule: { at: target, allowWhileIdle: true },
                 actionTypeId: 'ALARM_ACTIONS',
+                channelId: 'alarms',
               });
             });
           }
@@ -276,6 +289,7 @@ export default function App() {
                   id: alarmIdNum + 100, // offset id
                   schedule: { at: new Date(Date.now() + snoozeMs), allowWhileIdle: true },
                   actionTypeId: 'ALARM_ACTIONS',
+                  channelId: 'alarms',
                 }
               ]
             }).catch(console.error);
@@ -377,14 +391,34 @@ export default function App() {
     localStorage.setItem('time_format_24h', String(nextVal));
   };
 
+  // Check and request permissions
+  const checkAndRequestPermissions = async () => {
+    try {
+      if (typeof window !== 'undefined' && (window as any).Capacitor) {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        const permStatus = await LocalNotifications.checkPermissions();
+        if (permStatus.display !== 'granted') {
+          await LocalNotifications.requestPermissions();
+        }
+      } else if ('Notification' in window) {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          await Notification.requestPermission();
+        }
+      }
+    } catch (e) {
+      console.error('Failed to request permissions', e);
+    }
+  };
+
   // Create or Update Alarm
-  const handleSaveAlarm = (formData: {
+  const handleSaveAlarm = async (formData: {
     time: string;
     label: string;
     days: number[];
     soundId: string;
     snoozeDuration: number;
   }) => {
+    await checkAndRequestPermissions();
     if (alarmToEdit) {
       // Modify existing
       const updated = alarms.map((al) => {
@@ -419,23 +453,12 @@ export default function App() {
 
   // Toggle alarm enabled switch
   const handleToggleAlarm = async (alarmId: string) => {
+    let shouldRequest = false;
     const updated = alarms.map((al) => {
       if (al.id === alarmId) {
         const nextEnabled = !al.enabled;
         if (nextEnabled) {
-          // Request necessary permissions on Android when enabling an alarm
-          try {
-            if (typeof window !== 'undefined' && (window as any).Capacitor) {
-              import('@capacitor/filesystem').then(({ Filesystem }) => {
-                Filesystem.requestPermissions().catch(console.error);
-              });
-              import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
-                LocalNotifications.requestPermissions().catch(console.error);
-              });
-            }
-          } catch (e) {
-            console.error(e);
-          }
+          shouldRequest = true;
         }
         return {
           ...al,
@@ -448,6 +471,11 @@ export default function App() {
       }
       return al;
     });
+
+    if (shouldRequest) {
+      await checkAndRequestPermissions();
+    }
+
     saveAlarms(updated);
 
     // Stop ringing if we just toggled off the currently ringing alarm
