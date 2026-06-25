@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Bell, Clock, Moon, Sun, Volume2, Sparkles, Sliders, Info, VolumeX, X } from 'lucide-react';
 import { Alarm } from './types';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import AlarmCard from './components/AlarmCard';
 import AlarmForm from './components/AlarmForm';
 import AlarmModal from './components/AlarmModal';
@@ -99,6 +100,37 @@ export default function App() {
           console.error('Service Worker registration failed:', err);
         });
     }
+
+    // Register Capacitor Notification Actions
+    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+      import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+        LocalNotifications.registerActionTypes({
+          types: [
+            {
+              id: 'ALARM_ACTIONS',
+              actions: [
+                {
+                  id: 'snooze',
+                  title: 'Отложить'
+                },
+                {
+                  id: 'dismiss',
+                  title: 'Выключить',
+                  destructive: true
+                }
+              ]
+            }
+          ]
+        }).catch(console.error);
+
+        LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+          // You could parse the ID and find the alarm to actually snooze/dismiss it in state,
+          // but state might not be accessible here due to closure.
+          // We can dispatch a custom event.
+          window.dispatchEvent(new CustomEvent('alarm-action', { detail: notificationAction }));
+        });
+      });
+    }
   }, []);
 
   // Listen for beforeinstallprompt
@@ -125,13 +157,76 @@ export default function App() {
     }
   };
 
-  // Helper to sync alarms with the Service Worker
-  const syncAlarmsWithSW = (updatedAlarms: Alarm[]) => {
+  // Helper to sync alarms with the Service Worker and Capacitor LocalNotifications
+  const syncAlarmsWithSW = async (updatedAlarms: Alarm[]) => {
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
         type: 'SET_ALARMS',
         alarms: updatedAlarms,
       });
+    }
+
+    try {
+      if (typeof window !== 'undefined' && (window as any).Capacitor) {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        // Clear all previous
+        const pending = await LocalNotifications.getPending();
+        if (pending.notifications.length > 0) {
+          await LocalNotifications.cancel({ notifications: pending.notifications });
+        }
+
+        const notificationsToSchedule: any[] = [];
+        const now = new Date();
+
+        updatedAlarms.forEach((alarm) => {
+          if (!alarm.enabled) return;
+
+          const [alarmH, alarmM] = alarm.time.split(':').map(Number);
+          const alarmIdNum = parseInt(alarm.id.replace(/\D/g, '').substring(0, 8), 10) || Math.floor(Math.random() * 100000);
+
+          if (alarm.days.length === 0) {
+            // One-time alarm
+            const target = new Date(now);
+            target.setHours(alarmH, alarmM, 0, 0);
+            if (target.getTime() <= now.getTime()) {
+              target.setDate(target.getDate() + 1);
+            }
+            notificationsToSchedule.push({
+              title: alarm.label || 'Будильник',
+              body: `Пора просыпаться! Время: ${alarm.time}`,
+              id: alarmIdNum,
+              schedule: { at: target, allowWhileIdle: true },
+              actionTypeId: 'ALARM_ACTIONS',
+            });
+          } else {
+            // Repeating alarm - schedule for the next week
+            alarm.days.forEach(dayOfWeek => {
+              const target = new Date(now);
+              // Find next occurrence of this day
+              let diff = dayOfWeek - target.getDay();
+              if (diff < 0 || (diff === 0 && (target.getHours() > alarmH || (target.getHours() === alarmH && target.getMinutes() >= alarmM)))) {
+                diff += 7;
+              }
+              target.setDate(target.getDate() + diff);
+              target.setHours(alarmH, alarmM, 0, 0);
+
+              notificationsToSchedule.push({
+                title: alarm.label || 'Будильник',
+                body: `Пора просыпаться! Время: ${alarm.time}`,
+                id: alarmIdNum + dayOfWeek, // Unique ID per day
+                schedule: { at: target, allowWhileIdle: true },
+                actionTypeId: 'ALARM_ACTIONS',
+              });
+            });
+          }
+        });
+
+        if (notificationsToSchedule.length > 0) {
+          await LocalNotifications.schedule({ notifications: notificationsToSchedule });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to schedule local notifications', e);
     }
   };
 
@@ -141,6 +236,70 @@ export default function App() {
     localStorage.setItem('alarms_config', JSON.stringify(updatedAlarms));
     syncAlarmsWithSW(updatedAlarms);
   };
+
+  useEffect(() => {
+    const handleAlarmAction = (e: any) => {
+      const action = e.detail;
+      const alarmIdNum = action.notification.id;
+
+      // Find the alarm by numeric ID match
+      const matchingAlarm = alarms.find(a => {
+        const idNum = parseInt(a.id.replace(/\D/g, '').substring(0, 8), 10);
+        // Matching logic allows for +1 to +7 for dayOfWeek repeating alarms
+        return idNum && alarmIdNum >= idNum && alarmIdNum <= idNum + 7;
+      });
+
+      if (!matchingAlarm) return;
+
+      if (action.actionId === 'snooze') {
+        const snoozeMs = matchingAlarm.snoozeDuration * 60 * 1000;
+        const updated = alarms.map((al) => {
+          if (al.id === matchingAlarm.id) {
+            return {
+              ...al,
+              isSnoozed: true,
+              snoozedUntil: Date.now() + snoozeMs,
+              snoozeCount: al.snoozeCount + 1,
+            };
+          }
+          return al;
+        });
+        saveAlarms(updated);
+        // Also schedule a local notification for the snooze
+        if (typeof window !== 'undefined' && (window as any).Capacitor) {
+          import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+            LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: 'Будильник отложен',
+                  body: `Прозвонит снова через ${matchingAlarm.snoozeDuration} мин.`,
+                  id: alarmIdNum + 100, // offset id
+                  schedule: { at: new Date(Date.now() + snoozeMs), allowWhileIdle: true },
+                  actionTypeId: 'ALARM_ACTIONS',
+                }
+              ]
+            }).catch(console.error);
+          });
+        }
+      } else if (action.actionId === 'dismiss') {
+        const updated = alarms.map((al) => {
+          if (al.id === matchingAlarm.id) {
+            return {
+              ...al,
+              isSnoozed: false,
+              snoozedUntil: null,
+              enabled: al.days.length > 0, // Disable if one-time
+            };
+          }
+          return al;
+        });
+        saveAlarms(updated);
+      }
+    };
+
+    window.addEventListener('alarm-action', handleAlarmAction);
+    return () => window.removeEventListener('alarm-action', handleAlarmAction);
+  }, [alarms]);
 
   // Request system notification permission
   const requestNotificationPermission = async () => {
@@ -179,8 +338,9 @@ export default function App() {
         const triggerAlarm = (targetAlarm: Alarm) => {
           setActiveRingingAlarm(targetAlarm);
           
-          // Trigger system notification if permitted
-          if ('Notification' in window && Notification.permission === 'granted') {
+          // Trigger system notification if permitted and not using Capacitor (since Capacitor schedules them natively)
+          const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor;
+          if (!isCapacitor && 'Notification' in window && Notification.permission === 'granted') {
             new Notification(targetAlarm.label || 'Будильник', {
               body: `Пора просыпаться! Время: ${targetAlarm.time}`,
               requireInteraction: true,
@@ -546,18 +706,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Informational persistent footnote */}
-        <footer id="app-footer-info" className="flex items-start space-x-3 bg-zinc-900/20 border border-zinc-800/60 rounded-[24px] p-6 text-xs text-zinc-500">
-          <Info size={16} className="text-indigo-400 shrink-0 mt-0.5" />
-          <div className="space-y-1.5 font-medium leading-relaxed">
-            <p>
-              Your configurations are securely persisted in local storage. To guarantee a loud audio alarm chime, we recommend keeping this browser tab open.
-            </p>
-            <p className="text-indigo-400/80">
-              ⚡ <strong>Closed Tab Support:</strong> We have registered a Service Worker with Desktop Notification triggers. If you permit notifications, the system will send you immediate alerts even if this application tab or browser is completely closed!
-            </p>
-          </div>
-        </footer>
+
 
         {/* Floating Alarms Forms Overlay */}
         <AnimatePresence>
