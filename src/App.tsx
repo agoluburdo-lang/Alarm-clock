@@ -258,10 +258,25 @@ export default function App() {
   };
 
   // Toggle alarm enabled switch
-  const handleToggleAlarm = (alarmId: string) => {
+  const handleToggleAlarm = async (alarmId: string) => {
     const updated = alarms.map((al) => {
       if (al.id === alarmId) {
         const nextEnabled = !al.enabled;
+        if (nextEnabled) {
+          // Request necessary permissions on Android when enabling an alarm
+          try {
+            if (typeof window !== 'undefined' && (window as any).Capacitor) {
+              import('@capacitor/filesystem').then(({ Filesystem }) => {
+                Filesystem.requestPermissions().catch(console.error);
+              });
+              import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+                LocalNotifications.requestPermissions().catch(console.error);
+              });
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
         return {
           ...al,
           enabled: nextEnabled,
@@ -439,49 +454,6 @@ export default function App() {
             <p className="text-xl font-medium text-white">{formattedDate}</p>
           </div>
           <div className="flex flex-wrap gap-x-8 gap-y-4 items-start w-full sm:w-auto">
-            <div className="min-w-[120px]">
-              <h2 className="text-xs uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2">Background Alerts</h2>
-              {notificationPermission === 'granted' ? (
-                <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                  </span>
-                  <span>Active</span>
-                </div>
-              ) : notificationPermission === 'denied' ? (
-                <span className="text-rose-400 font-bold text-xs uppercase tracking-wider block" title="Enable notifications in browser settings for background alarm functionality">
-                  Blocked ⚠️
-                </span>
-              ) : (
-                <button
-                  id="enable-notifications-btn"
-                  onClick={requestNotificationPermission}
-                  className="text-xs font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-                >
-                  Enable 🔔
-                </button>
-              )}
-            </div>
-            <div className="min-w-[120px]">
-              <h2 className="text-xs uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2">Standalone App</h2>
-              {isStandalone ? (
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
-                  <span className="relative flex h-2 w-2">
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <span>Installed 💻</span>
-                </div>
-              ) : (
-                <button
-                  id="install-pwa-btn"
-                  onClick={handleInstallApp}
-                  className="text-xs font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-                >
-                  Install App 📱
-                </button>
-              )}
-            </div>
             <div className="text-left sm:text-right">
               <h2 className="text-xs uppercase tracking-[0.3em] text-zinc-500 font-bold mb-2">Time Format</h2>
               <button
