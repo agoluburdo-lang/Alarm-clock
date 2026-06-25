@@ -37,42 +37,6 @@ jobs:
           fi
           npx cap sync
 
-      # 5. Настраиваем WebView в MainActivity для автоматического воспроизведения звука (без кликов!)
-      - name: Disable Media Playback User Gesture Requirement
-        run: |
-          mkdir -p android/app/src/main/java/com/minimalist/alarmclock
-          # Удаляем стандартный MainActivity.kt (Kotlin) для предотвращения дублирования классов с MainActivity.java
-          rm -f android/app/src/main/java/com/minimalist/alarmclock/MainActivity.kt
-          cat << 'EOF' > android/app/src/main/java/com/minimalist/alarmclock/MainActivity.java
-          package com.minimalist.alarmclock;
-
-          import android.os.Bundle;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import com.getcapacitor.Bridge;
-          import com.getcapacitor.BridgeActivity;
-
-          public class MainActivity extends BridgeActivity {
-              @Override
-              public void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-              }
-
-              @Override
-              public void onStart() {
-                  super.onStart();
-                  // Отключаем обязательное требование кликов по экрану для воспроизведения звуков будильника
-                  if (this.bridge != null) {
-                      WebView webView = this.bridge.getWebView();
-                      if (webView != null) {
-                          WebSettings settings = webView.getSettings();
-                          settings.setMediaPlaybackRequiresUserGesture(false);
-                      }
-                  }
-              }
-          }
-          EOF
-
       # 6. Устанавливаем Java 21 для сборки Android Gradle проекта
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -80,18 +44,7 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      # Удаляем поврежденный wrapper до запуска setup-gradle (так как он делает валидацию)
-      - name: Remove corrupted gradle-wrapper.jar
-        run: rm -f android/gradle/wrapper/gradle-wrapper.jar
-
-      # 7. Устанавливаем Gradle напрямую
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.12.1'
-          cache-disabled: true
-          validate-wrappers: false
-
+      # 7. Генерируем свежий Gradle Wrapper (используем предустановленный в Ubuntu Gradle)
       - name: Generate Fresh Gradle Wrapper
         run: |
           cd android
@@ -100,11 +53,19 @@ jobs:
           chmod +x gradlew
 
       # 8. Компилируем готовый отладочный APK (Debug APK)
-      # Отладочный APK не требует цифровой подписи (keystore) и сразу готов к установке на телефон
       - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew clean assembleDebug --no-daemon --console=plain --stacktrace
+          if ! ./gradlew clean assembleDebug --no-daemon --console=plain --stacktrace > build_output.log 2>&1; then
+            echo "## Gradle Build Failed ❌" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Click to view build log</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```log' >> $GITHUB_STEP_SUMMARY
+            cat build_output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
       # 9. Сохраняем и публикуем готовый APK файл в артефактах GitHub
       - name: Upload Android APK Artifact

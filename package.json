@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "cap:add-android": "cap add android",
     "cap:sync": "cap sync",
-    "cap:open-android": "cap open android"
+    "cap:open-android": "cap open android",
+    "test-gradle": "cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
