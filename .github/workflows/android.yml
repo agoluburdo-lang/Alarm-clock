@@ -81,17 +81,15 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # 7. Проверяем целостность Gradle Wrapper Jar и восстанавливаем при необходимости
-      - name: Validate or Restore Gradle Wrapper Jar
+      # 7. Загружаем чистый и неповрежденный Gradle Wrapper Jar напрямую от Gradle (избегая повреждения Git)
+      - name: Download Pristine Gradle Wrapper Jar
         run: |
           JAR_PATH="android/gradle/wrapper/gradle-wrapper.jar"
-          if [ ! -f "$JAR_PATH" ] || [ $(wc -c < "$JAR_PATH") -lt 30000 ]; then
-            echo "Gradle Wrapper Jar is missing or corrupted. Downloading a pristine binary..."
-            mkdir -p android/gradle/wrapper
-            curl -sL -o "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.12.1/gradle/wrapper/gradle-wrapper.jar
-          else
-            echo "Gradle Wrapper Jar is valid (binary integrity verified)."
-          fi
+          mkdir -p android/gradle/wrapper
+          rm -f "$JAR_PATH"
+          echo "Downloading pristine gradle-wrapper.jar..."
+          curl -sL -o "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.12.1/gradle/wrapper/gradle-wrapper.jar
+          echo "Pristine Gradle Wrapper Jar downloaded successfully."
 
       # 8. Предоставляем права на выполнение Gradle Wrapper
       - name: Grant Execute Permission for Gradle
