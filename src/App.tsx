@@ -105,9 +105,9 @@ export default function App() {
     if (typeof window !== 'undefined' && (window as any).Capacitor) {
       import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
         LocalNotifications.createChannel({
-          id: 'alarms',
-          name: 'Будильники',
-          description: 'Уведомления будильника',
+          id: 'alarm_high_priority_v1',
+          name: 'Срабатывание будильника',
+          description: 'Уведомления во время звонка',
           importance: 5,
           visibility: 1,
           vibration: true,
@@ -208,7 +208,7 @@ export default function App() {
               id: alarmIdNum,
               schedule: { at: target, allowWhileIdle: true },
               actionTypeId: 'ALARM_ACTIONS',
-              channelId: 'alarms',
+              channelId: 'alarm_high_priority_v1',
             });
           } else {
             // Repeating alarm - schedule for the next week
@@ -228,7 +228,7 @@ export default function App() {
                 id: alarmIdNum + dayOfWeek, // Unique ID per day
                 schedule: { at: target, allowWhileIdle: true },
                 actionTypeId: 'ALARM_ACTIONS',
-                channelId: 'alarms',
+                channelId: 'alarm_high_priority_v1',
               });
             });
           }
@@ -289,7 +289,7 @@ export default function App() {
                   id: alarmIdNum + 100, // offset id
                   schedule: { at: new Date(Date.now() + snoozeMs), allowWhileIdle: true },
                   actionTypeId: 'ALARM_ACTIONS',
-                  channelId: 'alarms',
+                  channelId: 'alarm_high_priority_v1',
                 }
               ]
             }).catch(console.error);
@@ -308,6 +308,15 @@ export default function App() {
           return al;
         });
         saveAlarms(updated);
+      }
+      
+      // Attempt to minimize app after action, ONLY if it wasn't a standard 'tap'
+      if (action.actionId === 'snooze' || action.actionId === 'dismiss') {
+          if (typeof window !== 'undefined' && (window as any).Capacitor) {
+              import('@capacitor/app').then(({ App }) => {
+                  App.minimizeApp().catch(console.error);
+              });
+          }
       }
     };
 
@@ -396,9 +405,17 @@ export default function App() {
     try {
       if (typeof window !== 'undefined' && (window as any).Capacitor) {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
-        const permStatus = await LocalNotifications.checkPermissions();
+        
+        let permStatus = await LocalNotifications.checkPermissions();
         if (permStatus.display !== 'granted') {
-          await LocalNotifications.requestPermissions();
+          permStatus = await LocalNotifications.requestPermissions();
+        }
+
+        if (LocalNotifications.checkExactNotificationSetting && LocalNotifications.changeExactNotificationSetting) {
+            const exactPerm = await LocalNotifications.checkExactNotificationSetting();
+            if (exactPerm.exact_alarm !== 'granted') {
+               await LocalNotifications.changeExactNotificationSetting();
+            }
         }
       } else if ('Notification' in window) {
         if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
