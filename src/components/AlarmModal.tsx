@@ -16,8 +16,11 @@ export default function AlarmModal({ alarm, onDismiss, onSnooze }: AlarmModalPro
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
-    // Start playing sound
-    startAlarmSound(alarm.soundId);
+    // Start playing sound (unless Android native handles it)
+    const isAndroid = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
+    if (!isAndroid) {
+        startAlarmSound(alarm.soundId);
+    }
 
     // Track active ringing time
     const updateTime = () => {

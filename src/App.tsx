@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Bell, Clock, Moon, Sun, Volume2, Sparkles, Sliders, Info, VolumeX, X } from 'lucide-react';
 import { Alarm } from './types';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { registerPlugin } from '@capacitor/core';
 import AlarmCard from './components/AlarmCard';
+
+const NativeAlarm = registerPlugin<any>('NativeAlarm');
 import AlarmForm from './components/AlarmForm';
 import AlarmModal from './components/AlarmModal';
 import { stopAlarmSound } from './utils/audio';
@@ -180,6 +183,51 @@ export default function App() {
     try {
       if (typeof window !== 'undefined' && (window as any).Capacitor) {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
+        const isAndroid = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
+
+        if (isAndroid) {
+            // Unschedule all existing alarms
+            alarms.forEach(alarm => {
+                const alarmIdNum = parseInt(alarm.id.replace(/\D/g, '').substring(0, 8), 10) || 0;
+                if (alarm.days.length === 0) {
+                   NativeAlarm.cancel({ id: alarmIdNum }).catch(() => {});
+                } else {
+                   alarm.days.forEach(day => {
+                       NativeAlarm.cancel({ id: alarmIdNum + day }).catch(() => {});
+                   });
+                }
+            });
+
+            // Schedule new active ones
+            updatedAlarms.forEach(alarm => {
+              if (!alarm.enabled) return;
+              
+              const [alarmH, alarmM] = alarm.time.split(':').map(Number);
+              const alarmIdNum = parseInt(alarm.id.replace(/\D/g, '').substring(0, 8), 10) || Math.floor(Math.random() * 100000);
+              
+              if (alarm.days.length === 0) {
+                 const target = new Date(now);
+                 target.setHours(alarmH, alarmM, 0, 0);
+                 if (target.getTime() <= now.getTime()) {
+                   target.setDate(target.getDate() + 1);
+                 }
+                 NativeAlarm.schedule({ id: alarmIdNum, time: target.getTime(), label: alarm.label }).catch(console.error);
+              } else {
+                 alarm.days.forEach(dayOfWeek => {
+                   const target = new Date(now);
+                   let diff = dayOfWeek - target.getDay();
+                   if (diff < 0 || (diff === 0 && (target.getHours() > alarmH || (target.getHours() === alarmH && target.getMinutes() >= alarmM)))) {
+                     diff += 7;
+                   }
+                   target.setDate(target.getDate() + diff);
+                   target.setHours(alarmH, alarmM, 0, 0);
+                   NativeAlarm.schedule({ id: alarmIdNum + dayOfWeek, time: target.getTime(), label: alarm.label }).catch(console.error);
+                 });
+              }
+            });
+        }
+
+        // Keep LocalNotifications as a fallback or for the notification drawer / iOS
         // Clear all previous
         const pending = await LocalNotifications.getPending();
         if (pending.notifications.length > 0) {
@@ -280,20 +328,29 @@ export default function App() {
         saveAlarms(updated);
         // Also schedule a local notification for the snooze
         if (typeof window !== 'undefined' && (window as any).Capacitor) {
-          import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
-            LocalNotifications.schedule({
-              notifications: [
-                {
-                  title: 'Будильник отложен',
-                  body: `Прозвонит снова через ${matchingAlarm.snoozeDuration} мин.`,
+          const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
+          if (isAndroid) {
+              NativeAlarm.schedule({
                   id: alarmIdNum + 100, // offset id
-                  schedule: { at: new Date(Date.now() + snoozeMs), allowWhileIdle: true },
-                  actionTypeId: 'ALARM_ACTIONS',
-                  channelId: 'alarm_high_priority_v1',
-                }
-              ]
-            }).catch(console.error);
-          });
+                  time: Date.now() + snoozeMs,
+                  label: matchingAlarm.label || 'Будильник'
+              }).catch(console.error);
+          } else {
+            import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+              LocalNotifications.schedule({
+                notifications: [
+                  {
+                    title: 'Будильник отложен',
+                    body: `Прозвонит снова через ${matchingAlarm.snoozeDuration} мин.`,
+                    id: alarmIdNum + 100, // offset id
+                    schedule: { at: new Date(Date.now() + snoozeMs), allowWhileIdle: true },
+                    actionTypeId: 'ALARM_ACTIONS',
+                    channelId: 'alarm_high_priority_v1',
+                  }
+                ]
+              }).catch(console.error);
+            });
+          }
         }
       } else if (action.actionId === 'dismiss') {
         const updated = alarms.map((al) => {
@@ -312,6 +369,8 @@ export default function App() {
       
       // Attempt to minimize app after action, ONLY if it wasn't a standard 'tap'
       if (action.actionId === 'snooze' || action.actionId === 'dismiss') {
+          setActiveRingingAlarm(null);
+          
           if (typeof window !== 'undefined' && (window as any).Capacitor) {
               import('@capacitor/app').then(({ App }) => {
                   App.minimizeApp().catch(console.error);
@@ -321,7 +380,24 @@ export default function App() {
     };
 
     window.addEventListener('alarm-action', handleAlarmAction);
-    return () => window.removeEventListener('alarm-action', handleAlarmAction);
+    
+    let nativeListener: any = null;
+    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+       NativeAlarm.addListener('alarm-action', (data: any) => {
+          // Normalize payload to match LocalNotification action shape
+          window.dispatchEvent(new CustomEvent('alarm-action', { detail: {
+             actionId: data.actionId,
+             notification: { id: data.id }
+          }}));
+       }).then((l: any) => nativeListener = l);
+    }
+
+    return () => {
+       window.removeEventListener('alarm-action', handleAlarmAction);
+       if (nativeListener) {
+           nativeListener.remove();
+       }
+    };
   }, [alarms]);
 
   // Request system notification permission

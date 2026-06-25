@@ -35,6 +35,19 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <activity
+            android:name=".plugins.AlarmActivity"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:exported="false" />
+
+        <receiver
+            android:name=".plugins.AlarmReceiver"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
