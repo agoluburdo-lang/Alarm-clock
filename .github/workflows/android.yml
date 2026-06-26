@@ -44,11 +44,20 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
+      - name: Delete Corrupted Gradle Wrapper
+        run: rm -f android/gradle/wrapper/gradle-wrapper.jar
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.12.1'
+          cache-disabled: true
+          validate-wrappers: false
+
       # 7. Генерируем свежий Gradle Wrapper (используем предустановленный в Ubuntu Gradle)
       - name: Generate Fresh Gradle Wrapper
         run: |
           cd android
-          rm -f gradle/wrapper/gradle-wrapper.jar
           gradle wrapper --gradle-version 8.12.1
           chmod +x gradlew
 
