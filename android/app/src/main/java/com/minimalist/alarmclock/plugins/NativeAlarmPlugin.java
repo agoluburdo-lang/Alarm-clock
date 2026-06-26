@@ -119,8 +119,11 @@ public class NativeAlarmPlugin extends Plugin {
         } else {
             call.resolve(new JSObject());
         }
+    }
+
     @PluginMethod
     public void cancel(PluginCall call) {
+        Integer id = call.getInt("id");
         if (id == null) {
             call.reject("Must provide an id");
             return;
