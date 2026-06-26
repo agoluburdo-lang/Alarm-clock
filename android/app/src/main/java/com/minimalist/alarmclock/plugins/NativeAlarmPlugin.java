@@ -79,12 +79,18 @@ public class NativeAlarmPlugin extends Plugin {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
-                call.reject("Missing exact alarm permission");
+                Intent permissionIntent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                permissionIntent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(permissionIntent);
+                call.reject("Missing exact alarm permission. Opening settings...");
                 return;
             }
         }
 
-        AlarmManager.AlarmClockInfo info = new AlarmManager.AlarmClockInfo(time, pendingIntent);
+        Intent showIntent = new Intent(context, com.minimalist.alarmclock.MainActivity.class);
+        PendingIntent showPendingIntent = PendingIntent.getActivity(context, id, showIntent, flags);
+        AlarmManager.AlarmClockInfo info = new AlarmManager.AlarmClockInfo(time, showPendingIntent);
         alarmManager.setAlarmClock(info, pendingIntent);
 
         JSObject ret = new JSObject();
@@ -93,8 +99,25 @@ public class NativeAlarmPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void checkIntent(PluginCall call) {
+        Intent intent = getActivity().getIntent();
+        if (intent != null && intent.hasExtra("alarm_action")) {
+            String action = intent.getStringExtra("alarm_action");
+            int id = intent.getIntExtra("alarm_id", 0);
+            
+            // clear the intent so it doesn't trigger again
+            intent.removeExtra("alarm_action");
+            intent.removeExtra("alarm_id");
+
+            JSObject ret = new JSObject();
+            ret.put("id", id);
+            ret.put("actionId", action);
+            call.resolve(ret);
+        } else {
+            call.resolve(new JSObject());
+        }
+    @PluginMethod
     public void cancel(PluginCall call) {
-        Integer id = call.getInt("id");
         if (id == null) {
             call.reject("Must provide an id");
             return;

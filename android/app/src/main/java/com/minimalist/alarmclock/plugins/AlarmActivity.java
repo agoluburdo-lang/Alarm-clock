@@ -119,11 +119,18 @@ public class AlarmActivity extends Activity {
             @Override
             public void onClick(View v) {
                 stopAlarm();
-                // We should pass "snooze" intent to Capacitor App or handle it via a broadcast
                 Intent i = new Intent("com.minimalist.alarmclock.ALARM_ACTION");
                 i.putExtra("id", id);
                 i.putExtra("action", "snooze");
                 sendBroadcast(i);
+                
+                Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (launchIntent != null) {
+                    launchIntent.putExtra("alarm_action", "snooze");
+                    launchIntent.putExtra("alarm_id", id);
+                    launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(launchIntent);
+                }
                 finish();
             }
         });
@@ -136,6 +143,14 @@ public class AlarmActivity extends Activity {
                 i.putExtra("id", id);
                 i.putExtra("action", "dismiss");
                 sendBroadcast(i);
+                
+                Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (launchIntent != null) {
+                    launchIntent.putExtra("alarm_action", "dismiss");
+                    launchIntent.putExtra("alarm_id", id);
+                    launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(launchIntent);
+                }
                 finish();
             }
         });

@@ -187,9 +187,18 @@ export default function App() {
         const now = new Date();
 
         if (isAndroid) {
+            const getNumericId = (id: string) => {
+                let hash = 0;
+                for (let i = 0; i < id.length; i++) {
+                    hash = ((hash << 5) - hash) + id.charCodeAt(i);
+                    hash |= 0; 
+                }
+                return Math.abs(hash) % 1000000;
+            };
+
             // Unschedule all existing alarms
             alarms.forEach(alarm => {
-                const alarmIdNum = parseInt(alarm.id.replace(/\D/g, '').substring(0, 8), 10) || 0;
+                const alarmIdNum = getNumericId(alarm.id);
                 if (alarm.days.length === 0) {
                    NativeAlarm.cancel({ id: alarmIdNum }).catch(() => {});
                 } else {
@@ -204,7 +213,7 @@ export default function App() {
               if (!alarm.enabled) return;
               
               const [alarmH, alarmM] = alarm.time.split(':').map(Number);
-              const alarmIdNum = parseInt(alarm.id.replace(/\D/g, '').substring(0, 8), 10) || Math.floor(Math.random() * 100000);
+              const alarmIdNum = getNumericId(alarm.id);
               
               if (alarm.days.length === 0) {
                  const target = new Date(now);
@@ -241,7 +250,12 @@ export default function App() {
           if (!alarm.enabled) return;
 
           const [alarmH, alarmM] = alarm.time.split(':').map(Number);
-          const alarmIdNum = parseInt(alarm.id.replace(/\D/g, '').substring(0, 8), 10) || Math.floor(Math.random() * 100000);
+          let hash = 0;
+          for (let i = 0; i < alarm.id.length; i++) {
+              hash = ((hash << 5) - hash) + alarm.id.charCodeAt(i);
+              hash |= 0; 
+          }
+          const alarmIdNum = Math.abs(hash) % 1000000;
 
           if (alarm.days.length === 0) {
             // One-time alarm
@@ -378,6 +392,17 @@ export default function App() {
           }
       }
     };
+
+    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+       NativeAlarm.checkIntent().then((data: any) => {
+           if (data && data.actionId) {
+               window.dispatchEvent(new CustomEvent('alarm-action', { detail: {
+                   actionId: data.actionId,
+                   notification: { id: data.id }
+               }}));
+           }
+       }).catch(console.error);
+    }
 
     window.addEventListener('alarm-action', handleAlarmAction);
     
