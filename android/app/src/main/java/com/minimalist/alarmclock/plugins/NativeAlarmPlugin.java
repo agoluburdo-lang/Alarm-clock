@@ -88,8 +88,13 @@ public class NativeAlarmPlugin extends Plugin {
             }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pendingIntent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Intent showIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (showIntent == null) {
+                showIntent = new Intent();
+            }
+            PendingIntent showPendingIntent = PendingIntent.getActivity(context, id, showIntent, flags);
+            alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(time, showPendingIntent), pendingIntent);
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             alarmManager.setExact(AlarmManager.RTC_WAKEUP, time, pendingIntent);
         } else {
@@ -144,5 +149,24 @@ public class NativeAlarmPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("success", true);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestBatteryOptimization(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Context context = getContext();
+            String packageName = context.getPackageName();
+            android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                try {
+                    Intent intent = new Intent();
+                    intent.setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(android.net.Uri.parse("package:" + packageName));
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                } catch (Exception e) {}
+            }
+        }
+        call.resolve();
     }
 }

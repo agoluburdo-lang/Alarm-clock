@@ -237,67 +237,64 @@ export default function App() {
             });
         }
 
-        // Keep LocalNotifications as a fallback or for the notification drawer / iOS
-        // Clear all previous
-        const pending = await LocalNotifications.getPending();
-        if (pending.notifications.length > 0) {
-          await LocalNotifications.cancel({ notifications: pending.notifications });
-        }
-
-        const notificationsToSchedule: any[] = [];
-
-        updatedAlarms.forEach((alarm) => {
-          if (!alarm.enabled) return;
-
-          const [alarmH, alarmM] = alarm.time.split(':').map(Number);
-          let hash = 0;
-          for (let i = 0; i < alarm.id.length; i++) {
-              hash = ((hash << 5) - hash) + alarm.id.charCodeAt(i);
-              hash |= 0; 
+        if (!isAndroid) {
+          // Keep LocalNotifications as a fallback or for the notification drawer / iOS
+          // Clear all previous
+          const pending = await LocalNotifications.getPending();
+          if (pending.notifications.length > 0) {
+            await LocalNotifications.cancel({ notifications: pending.notifications });
           }
-          const alarmIdNum = Math.abs(hash) % 1000000;
 
-          if (alarm.days.length === 0) {
-            // One-time alarm
-            const target = new Date(now);
-            target.setHours(alarmH, alarmM, 0, 0);
-            if (target.getTime() <= now.getTime()) {
-              target.setDate(target.getDate() + 1);
-            }
-            notificationsToSchedule.push({
-              title: alarm.label || 'Будильник',
-              body: `Пора просыпаться! Время: ${alarm.time}`,
-              id: alarmIdNum,
-              schedule: { at: target, allowWhileIdle: true },
-              actionTypeId: 'ALARM_ACTIONS',
-              channelId: 'alarm_high_priority_v1',
-            });
-          } else {
-            // Repeating alarm - schedule for the next week
-            alarm.days.forEach(dayOfWeek => {
+          const notificationsToSchedule: any[] = [];
+
+          updatedAlarms.forEach((alarm) => {
+            if (!alarm.enabled) return;
+
+            const [alarmH, alarmM] = alarm.time.split(':').map(Number);
+            const alarmIdNum = getNumericId(alarm.id);
+
+            if (alarm.days.length === 0) {
+              // One-time alarm
               const target = new Date(now);
-              // Find next occurrence of this day
-              let diff = dayOfWeek - target.getDay();
-              if (diff < 0 || (diff === 0 && (target.getHours() > alarmH || (target.getHours() === alarmH && target.getMinutes() >= alarmM)))) {
-                diff += 7;
-              }
-              target.setDate(target.getDate() + diff);
               target.setHours(alarmH, alarmM, 0, 0);
-
+              if (target.getTime() <= now.getTime()) {
+                target.setDate(target.getDate() + 1);
+              }
               notificationsToSchedule.push({
                 title: alarm.label || 'Будильник',
                 body: `Пора просыпаться! Время: ${alarm.time}`,
-                id: alarmIdNum + dayOfWeek, // Unique ID per day
+                id: alarmIdNum,
                 schedule: { at: target, allowWhileIdle: true },
                 actionTypeId: 'ALARM_ACTIONS',
                 channelId: 'alarm_high_priority_v1',
               });
-            });
-          }
-        });
+            } else {
+              // Repeating alarm - schedule for the next week
+              alarm.days.forEach(dayOfWeek => {
+                const target = new Date(now);
+                // Find next occurrence of this day
+                let diff = dayOfWeek - target.getDay();
+                if (diff < 0 || (diff === 0 && (target.getHours() > alarmH || (target.getHours() === alarmH && target.getMinutes() >= alarmM)))) {
+                  diff += 7;
+                }
+                target.setDate(target.getDate() + diff);
+                target.setHours(alarmH, alarmM, 0, 0);
 
-        if (notificationsToSchedule.length > 0) {
-          await LocalNotifications.schedule({ notifications: notificationsToSchedule });
+                notificationsToSchedule.push({
+                  title: alarm.label || 'Будильник',
+                  body: `Пора просыпаться! Время: ${alarm.time}`,
+                  id: alarmIdNum + dayOfWeek, // Unique ID per day
+                  schedule: { at: target, allowWhileIdle: true },
+                  actionTypeId: 'ALARM_ACTIONS',
+                  channelId: 'alarm_high_priority_v1',
+                });
+              });
+            }
+          });
+
+          if (notificationsToSchedule.length > 0) {
+            await LocalNotifications.schedule({ notifications: notificationsToSchedule });
+          }
         }
       }
     } catch (e: any) {
@@ -522,6 +519,15 @@ export default function App() {
                await LocalNotifications.changeExactNotificationSetting();
             }
         }
+        
+        try {
+          const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
+          if (isAndroid) {
+            NativeAlarm.requestBatteryOptimization().catch((e: any) => {
+              if (e && e.message !== 'Not implemented on web.') console.error(e);
+            });
+          }
+        } catch(e) {}
       } else if ('Notification' in window) {
         if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
           await Notification.requestPermission();

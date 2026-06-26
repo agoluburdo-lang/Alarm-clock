@@ -39,8 +39,9 @@ public class AlarmReceiver extends BroadcastReceiver {
             notificationManager.createNotificationChannel(channel);
         }
 
+        int iconResId = context.getApplicationInfo().icon;
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(iconResId != 0 ? iconResId : android.R.drawable.ic_dialog_info)
                 .setContentTitle(label != null ? label : "Будильник")
                 .setContentText("Пора просыпаться!")
                 .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -51,5 +52,11 @@ public class AlarmReceiver extends BroadcastReceiver {
                 .setAutoCancel(false);
 
         notificationManager.notify(id, builder.build());
+        
+        try {
+            context.startActivity(activityIntent);
+        } catch (Exception e) {
+            Log.e("AlarmReceiver", "Failed to start activity", e);
+        }
     }
 }
