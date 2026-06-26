@@ -88,10 +88,13 @@ public class NativeAlarmPlugin extends Plugin {
             }
         }
 
-        Intent showIntent = new Intent(context, com.minimalist.alarmclock.MainActivity.class);
-        PendingIntent showPendingIntent = PendingIntent.getActivity(context, id, showIntent, flags);
-        AlarmManager.AlarmClockInfo info = new AlarmManager.AlarmClockInfo(time, showPendingIntent);
-        alarmManager.setAlarmClock(info, pendingIntent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pendingIntent);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, time, pendingIntent);
+        } else {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, time, pendingIntent);
+        }
 
         JSObject ret = new JSObject();
         ret.put("success", true);

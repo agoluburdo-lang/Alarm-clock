@@ -105,7 +105,7 @@ export default function App() {
     }
 
     // Register Capacitor Notification Actions
-    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+    if (typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
       import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
         LocalNotifications.createChannel({
           id: 'alarm_high_priority_v1',
@@ -114,7 +114,7 @@ export default function App() {
           importance: 5,
           visibility: 1,
           vibration: true,
-        }).catch(console.error);
+        }).catch(err => { if (err.message !== 'Not implemented on web.') console.error(err); });
 
         LocalNotifications.registerActionTypes({
           types: [
@@ -135,14 +135,14 @@ export default function App() {
               ]
             }
           ]
-        }).catch(console.error);
+        }).catch(err => { if (err.message !== 'Not implemented on web.') console.error(err); });
 
         LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
           // You could parse the ID and find the alarm to actually snooze/dismiss it in state,
           // but state might not be accessible here due to closure.
           // We can dispatch a custom event.
           window.dispatchEvent(new CustomEvent('alarm-action', { detail: notificationAction }));
-        });
+        }).catch(err => { if (err.message !== 'Not implemented on web.') console.error(err); });
       });
     }
   }, []);
@@ -181,7 +181,7 @@ export default function App() {
     }
 
     try {
-      if (typeof window !== 'undefined' && (window as any).Capacitor) {
+      if (typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
         const isAndroid = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
         const now = new Date();
@@ -221,7 +221,7 @@ export default function App() {
                  if (target.getTime() <= now.getTime()) {
                    target.setDate(target.getDate() + 1);
                  }
-                 NativeAlarm.schedule({ id: alarmIdNum, time: target.getTime(), label: alarm.label }).catch(console.error);
+                 NativeAlarm.schedule({ id: alarmIdNum, time: target.getTime(), label: alarm.label }).catch((e: any) => { if (e && e.message !== 'Not implemented on web.') console.error(e); });
               } else {
                  alarm.days.forEach(dayOfWeek => {
                    const target = new Date(now);
@@ -231,7 +231,7 @@ export default function App() {
                    }
                    target.setDate(target.getDate() + diff);
                    target.setHours(alarmH, alarmM, 0, 0);
-                   NativeAlarm.schedule({ id: alarmIdNum + dayOfWeek, time: target.getTime(), label: alarm.label }).catch(console.error);
+                   NativeAlarm.schedule({ id: alarmIdNum + dayOfWeek, time: target.getTime(), label: alarm.label }).catch((e: any) => { if (e && e.message !== 'Not implemented on web.') console.error(e); });
                  });
               }
             });
@@ -300,8 +300,10 @@ export default function App() {
           await LocalNotifications.schedule({ notifications: notificationsToSchedule });
         }
       }
-    } catch (e) {
-      console.error('Failed to schedule local notifications', e);
+    } catch (e: any) {
+      if (e && e.message !== 'Not implemented on web.') {
+          console.error('Failed to schedule local notifications', e);
+      }
     }
   };
 
@@ -341,14 +343,14 @@ export default function App() {
         });
         saveAlarms(updated);
         // Also schedule a local notification for the snooze
-        if (typeof window !== 'undefined' && (window as any).Capacitor) {
+        if (typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
           const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
           if (isAndroid) {
               NativeAlarm.schedule({
                   id: alarmIdNum + 100, // offset id
                   time: Date.now() + snoozeMs,
                   label: matchingAlarm.label || 'Будильник'
-              }).catch(console.error);
+              }).catch((e: any) => { if (e && e.message !== 'Not implemented on web.') console.error(e); });
           } else {
             import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
               LocalNotifications.schedule({
@@ -362,7 +364,7 @@ export default function App() {
                     channelId: 'alarm_high_priority_v1',
                   }
                 ]
-              }).catch(console.error);
+              }).catch((err: any) => { if (err.message !== 'Not implemented on web.') console.error(err); });
             });
           }
         }
@@ -385,15 +387,17 @@ export default function App() {
       if (action.actionId === 'snooze' || action.actionId === 'dismiss') {
           setActiveRingingAlarm(null);
           
-          if (typeof window !== 'undefined' && (window as any).Capacitor) {
+          if (typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android') {
               import('@capacitor/app').then(({ App }) => {
-                  App.minimizeApp().catch(console.error);
+                  App.minimizeApp().catch((e: any) => { if (e && e.message !== 'Not implemented on web.') console.error(e); });
               });
           }
       }
     };
 
-    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+    const isAndroidPlatform = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
+
+    if (isAndroidPlatform) {
        NativeAlarm.checkIntent().then((data: any) => {
            if (data && data.actionId) {
                window.dispatchEvent(new CustomEvent('alarm-action', { detail: {
@@ -401,20 +405,20 @@ export default function App() {
                    notification: { id: data.id }
                }}));
            }
-       }).catch(console.error);
+       }).catch((e: any) => { if (e && e.message !== 'Not implemented on web.') console.error(e); });
     }
 
     window.addEventListener('alarm-action', handleAlarmAction);
     
     let nativeListener: any = null;
-    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+    if (isAndroidPlatform) {
        NativeAlarm.addListener('alarm-action', (data: any) => {
           // Normalize payload to match LocalNotification action shape
           window.dispatchEvent(new CustomEvent('alarm-action', { detail: {
              actionId: data.actionId,
              notification: { id: data.id }
           }}));
-       }).then((l: any) => nativeListener = l);
+       }).then((l: any) => nativeListener = l).catch((e: any) => { if (e && e.message !== 'Not implemented on web.') console.error(e); });
     }
 
     return () => {
@@ -463,8 +467,8 @@ export default function App() {
           setActiveRingingAlarm(targetAlarm);
           
           // Trigger system notification if permitted and not using Capacitor (since Capacitor schedules them natively)
-          const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor;
-          if (!isCapacitor && 'Notification' in window && Notification.permission === 'granted') {
+          const isNativeCapacitor = typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNativePlatform();
+          if (!isNativeCapacitor && 'Notification' in window && Notification.permission === 'granted') {
             new Notification(targetAlarm.label || 'Будильник', {
               body: `Пора просыпаться! Время: ${targetAlarm.time}`,
               requireInteraction: true,
@@ -504,7 +508,7 @@ export default function App() {
   // Check and request permissions
   const checkAndRequestPermissions = async () => {
     try {
-      if (typeof window !== 'undefined' && (window as any).Capacitor) {
+      if (typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
         
         let permStatus = await LocalNotifications.checkPermissions();
@@ -523,8 +527,10 @@ export default function App() {
           await Notification.requestPermission();
         }
       }
-    } catch (e) {
-      console.error('Failed to request permissions', e);
+    } catch (e: any) {
+      if (e && e.message !== 'Not implemented on web.') {
+          console.error('Failed to request permissions', e);
+      }
     }
   };
 
