@@ -186,16 +186,16 @@ export default function App() {
         const isAndroid = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
         const now = new Date();
 
-        if (isAndroid) {
-            const getNumericId = (id: string) => {
-                let hash = 0;
-                for (let i = 0; i < id.length; i++) {
-                    hash = ((hash << 5) - hash) + id.charCodeAt(i);
-                    hash |= 0; 
-                }
-                return Math.abs(hash) % 1000000;
-            };
+        const getNumericId = (id: string) => {
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) {
+                hash = ((hash << 5) - hash) + id.charCodeAt(i);
+                hash |= 0; 
+            }
+            return Math.abs(hash) % 1000000;
+        };
 
+        if (isAndroid) {
             // Unschedule all existing alarms
             alarms.forEach(alarm => {
                 const alarmIdNum = getNumericId(alarm.id);

@@ -27,8 +27,6 @@ import android.graphics.drawable.GradientDrawable;
 import android.widget.TextClock;
 
 public class AlarmActivity extends Activity {
-    private Ringtone ringtone;
-    private Vibrator vibrator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -154,44 +152,17 @@ public class AlarmActivity extends Activity {
                 finish();
             }
         });
-
-        playAlarm();
-    }
-
-    private void playAlarm() {
-        Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (alarmUri == null) {
-            alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        }
-        ringtone = RingtoneManager.getRingtone(getApplicationContext(), alarmUri);
-        if (ringtone != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ringtone.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-            }
-            ringtone.play();
-        }
-
-        vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-        if (vibrator != null && vibrator.hasVibrator()) {
-            long[] pattern = {0, 1000, 1000};
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
-            } else {
-                vibrator.vibrate(pattern, 0);
-            }
-        }
     }
 
     private void stopAlarm() {
-        if (ringtone != null && ringtone.isPlaying()) {
-            ringtone.stop();
+        Intent stopIntent = new Intent(this, AlarmService.class);
+        stopIntent.setAction("STOP_ALARM");
+        try {
+            startService(stopIntent);
+        } catch (Exception e) {
+            android.util.Log.e("AlarmActivity", "Failed to start stop service", e);
         }
-        if (vibrator != null) {
-            vibrator.cancel();
-        }
+
         int id = getIntent().getIntExtra("id", 0);
         android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
@@ -213,6 +184,5 @@ public class AlarmActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        stopAlarm();
     }
 }
