@@ -77,28 +77,40 @@ public class NativeAlarmPlugin extends Plugin {
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!alarmManager.canScheduleExactAlarms()) {
-                Intent permissionIntent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                permissionIntent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
-                permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(permissionIntent);
-                call.reject("Missing exact alarm permission. Opening settings...");
-                return;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                Intent showIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+                if (showIntent == null) {
+                    showIntent = new Intent();
+                }
+                PendingIntent showPendingIntent = PendingIntent.getActivity(context, id, showIntent, flags);
+                alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(time, showPendingIntent), pendingIntent);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, time, pendingIntent);
+            } else {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, time, pendingIntent);
             }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            Intent showIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-            if (showIntent == null) {
-                showIntent = new Intent();
+        } catch (SecurityException e) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (!alarmManager.canScheduleExactAlarms()) {
+                    try {
+                        Intent permissionIntent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                        permissionIntent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                        permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        context.startActivity(permissionIntent);
+                    } catch (Exception ex) {
+                        try {
+                            Intent permissionIntent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                            permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            context.startActivity(permissionIntent);
+                        } catch (Exception ex2) {}
+                    }
+                    call.reject("Missing exact alarm permission. Opening settings...");
+                    return;
+                }
             }
-            PendingIntent showPendingIntent = PendingIntent.getActivity(context, id, showIntent, flags);
-            alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(time, showPendingIntent), pendingIntent);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            alarmManager.setExact(AlarmManager.RTC_WAKEUP, time, pendingIntent);
-        } else {
-            alarmManager.set(AlarmManager.RTC_WAKEUP, time, pendingIntent);
+            call.reject("SecurityException when scheduling alarm: " + e.getMessage());
+            return;
         }
 
         JSObject ret = new JSObject();
@@ -165,6 +177,53 @@ public class NativeAlarmPlugin extends Plugin {
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(intent);
                 } catch (Exception e) {}
+            }
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void checkBatteryOptimization(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Context context = getContext();
+            String packageName = context.getPackageName();
+            android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            ret.put("isOptimized", !pm.isIgnoringBatteryOptimizations(packageName));
+        } else {
+            ret.put("isOptimized", false);
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void checkOverlayPermission(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            ret.put("granted", android.provider.Settings.canDrawOverlays(getContext()));
+        } else {
+            ret.put("granted", true);
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestOverlayPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Context context = getContext();
+            if (!android.provider.Settings.canDrawOverlays(context)) {
+                try {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                    intent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                } catch (Exception e) {
+                    try {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        context.startActivity(intent);
+                    } catch (Exception ex) {}
+                }
             }
         }
         call.resolve();

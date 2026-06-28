@@ -47,6 +47,10 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallHelp, setShowInstallHelp] = useState<boolean>(false);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
+  const [androidPermissions, setAndroidPermissions] = useState<{
+    batteryIgnore: boolean;
+    overlay: boolean;
+  } | null>(null);
   
   // UI views
   const [showForm, setShowForm] = useState(false);
@@ -157,6 +161,33 @@ export default function App() {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
+  }, []);
+
+  // Poll Android advanced permissions status
+  useEffect(() => {
+    const isAndroid = typeof window !== 'undefined' && (window as any).Capacitor?.getPlatform() === 'android';
+    if (isAndroid) {
+      const checkPermissionsState = async () => {
+        try {
+          const battery = await NativeAlarm.checkBatteryOptimization();
+          const overlay = await NativeAlarm.checkOverlayPermission();
+          setAndroidPermissions({
+            batteryIgnore: !battery.isOptimized, // true if ignoring battery optimizations (granted)
+            overlay: overlay.granted, // true if overlay permission is granted
+          });
+        } catch (e) {
+          console.error("Error checking Android background permissions:", e);
+        }
+      };
+      
+      checkPermissionsState();
+      
+      // Also check on window focus when user returns from system settings
+      window.addEventListener('focus', checkPermissionsState);
+      return () => {
+        window.removeEventListener('focus', checkPermissionsState);
+      };
+    }
   }, []);
 
   const handleInstallApp = async () => {
@@ -523,9 +554,16 @@ export default function App() {
         try {
           const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
           if (isAndroid) {
+            // 1. Request Battery Optimization exception (so OS doesn't freeze the alarm trigger/service)
             NativeAlarm.requestBatteryOptimization().catch((e: any) => {
               if (e && e.message !== 'Not implemented on web.') console.error(e);
             });
+
+            // 2. Request overlay permission (to draw over other apps/lockscreen)
+            const overlayStatus = await NativeAlarm.checkOverlayPermission();
+            if (!overlayStatus.granted) {
+              await NativeAlarm.requestOverlayPermission();
+            }
           }
         } catch(e) {}
       } else if ('Notification' in window) {
@@ -804,6 +842,54 @@ export default function App() {
             {getNextAlarmText()}
           </p>
         </section>
+
+        {/* Android Background Stability Warning Panel */}
+        {androidPermissions && (!androidPermissions.batteryIgnore || !androidPermissions.overlay) && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            id="android-permissions-warning"
+            className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-[24px] text-zinc-100 shadow-xl space-y-4"
+          >
+            <div className="flex items-center space-x-3 text-amber-400">
+              <Info size={20} />
+              <h3 className="text-sm font-bold uppercase tracking-wider">Настройки стабильности (Android)</h3>
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Чтобы будильник гарантированно срабатывал на заблокированном экране в фоновом режиме, предоставьте приложению необходимые разрешения:
+            </p>
+            <div className="flex flex-col gap-3 pt-1">
+              {!androidPermissions.batteryIgnore && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-zinc-200">1. Игнорировать оптимизацию батареи</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">Разрешает запуск таймера в режиме глубокого сна устройства (Doze mode).</p>
+                  </div>
+                  <button
+                    onClick={() => NativeAlarm.requestBatteryOptimization()}
+                    className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-black text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors shrink-0"
+                  >
+                    Разрешить
+                  </button>
+                </div>
+              )}
+              {!androidPermissions.overlay && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-zinc-200">2. Отображение поверх других окон</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">Необходимо для автоматического открытия экрана будильника поверх заблокированного экрана.</p>
+                  </div>
+                  <button
+                    onClick={() => NativeAlarm.requestOverlayPermission()}
+                    className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-black text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors shrink-0"
+                  >
+                    Разрешить
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         {/* Alarms Subtitle & Add Control Bar */}
         <section id="alarms-section" className="space-y-6 pt-6">

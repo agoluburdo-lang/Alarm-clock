@@ -35,11 +35,18 @@ public class AlarmService extends Service {
         
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MinimalistAlarm:WakeLock");
             try {
+                // Use FULL_WAKE_LOCK with ACQUIRE_CAUSES_WAKEUP to wake the screen immediately on alarm trigger
+                wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "MinimalistAlarm:ScreenWakeLock");
                 wakeLock.acquire(10 * 60 * 1000L); // 10 minutes maximum
             } catch (Exception e) {
-                Log.e(TAG, "Failed to acquire wake lock", e);
+                Log.e(TAG, "Failed to acquire screen wake lock, trying partial wake lock", e);
+                try {
+                    wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MinimalistAlarm:WakeLock");
+                    wakeLock.acquire(10 * 60 * 1000L);
+                } catch (Exception ex) {
+                    Log.e(TAG, "Failed to acquire partial wake lock", ex);
+                }
             }
         }
     }
@@ -63,11 +70,23 @@ public class AlarmService extends Service {
         int id = intent.getIntExtra("id", 0);
         String label = intent.getStringExtra("label");
 
-        // Start playing sound & vibrating
+        // 1. Build notification & start foreground IMMEDIATELY to satisfy system requirement
+        showForegroundNotification(id, label);
+
+        // 2. Start playing sound & vibrating AFTER the service is safely in the foreground
         playAlarmSoundAndVibration();
 
-        // Build notification & start foreground
-        showForegroundNotification(id, label);
+        // 3. Launch the AlarmActivity directly to wake up the screen and show UI
+        Intent activityIntent = new Intent(this, AlarmActivity.class);
+        activityIntent.putExtra("id", id);
+        activityIntent.putExtra("label", label);
+        activityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        try {
+            startActivity(activityIntent);
+            Log.d(TAG, "Successfully started AlarmActivity directly from service");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start AlarmActivity directly from service, falling back to notification only", e);
+        }
 
         return START_STICKY;
     }
