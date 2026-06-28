@@ -141,17 +141,47 @@ public class AlarmService extends Service {
         // Stop any current playback first
         stopAudioAndVibration();
 
+        // Request Audio Focus to prevent other apps from silencing the alarm
+        AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    AudioAttributes attributes = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build();
+                    android.media.AudioFocusRequest focusRequest = new android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                            .setAudioAttributes(attributes)
+                            .build();
+                    audioManager.requestAudioFocus(focusRequest);
+                } else {
+                    audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to request audio focus", e);
+            }
+        }
+
         // Play Sound
         Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
         if (alarmUri == null) {
             alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        }
+        if (alarmUri == null) {
+            alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
         }
         
         try {
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(this, alarmUri);
             mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
-            mediaPlayer.setLooping(true);
+            
+            // Critical: Set wake mode so the CPU doesn't sleep while playing the alarm
+            try {
+                mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to set wake mode on MediaPlayer", e);
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
@@ -161,8 +191,10 @@ public class AlarmService extends Service {
             }
 
             mediaPlayer.prepare();
+            // Critical: setLooping must be called AFTER prepare() on many Android devices to work correctly
+            mediaPlayer.setLooping(true);
             mediaPlayer.start();
-            Log.d(TAG, "MediaPlayer started successfully");
+            Log.d(TAG, "MediaPlayer started successfully with looping=true");
         } catch (Exception e) {
             Log.e(TAG, "Error playing alarm sound with MediaPlayer, trying fallback", e);
             playFallbackRingtone(alarmUri);
@@ -189,9 +221,11 @@ public class AlarmService extends Service {
                             .setUsage(AudioAttributes.USAGE_ALARM)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build());
+                    // Critical: Ensure the fallback ringtone also loops forever
+                    fallbackRingtone.setLooping(true);
                 }
                 fallbackRingtone.play();
-                Log.d(TAG, "Fallback ringtone started successfully");
+                Log.d(TAG, "Fallback ringtone started successfully (looping=" + (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) + ")");
             }
         } catch (Exception e) {
             Log.e(TAG, "Fallback ringtone failed", e);
