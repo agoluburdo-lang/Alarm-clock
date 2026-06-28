@@ -22,10 +22,31 @@ public class AlarmReceiver extends BroadcastReceiver {
             return;
         }
 
-        int id = intent.getIntExtra("id", -1);
-        if (id == -1) {
-            Log.e(TAG, "Received alarm intent with no valid id, ignoring.");
-            return;
+        int id = -1;
+        if (intent.hasExtra("id")) {
+            Object idObj = intent.getExtras().get("id");
+            if (idObj instanceof Number) {
+                id = ((Number) idObj).intValue();
+            } else if (idObj instanceof String) {
+                try {
+                    id = Integer.parseInt((String) idObj);
+                } catch (Exception e) {}
+            }
+        }
+
+        // Fallback: Parse ID from action string
+        if (id == -1 && action != null && action.startsWith("com.minimalist.alarmclock.ALARM_TRIGGER_")) {
+            try {
+                id = Integer.parseInt(action.substring("com.minimalist.alarmclock.ALARM_TRIGGER_".length()));
+                Log.d(TAG, "Parsed alarm id from action string: " + id);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to parse alarm id from action string", e);
+            }
+        }
+
+        if (id == -1 || id == 0) {
+            // startForeground requires non-zero ID, let's make sure it's not 0 or -1
+            id = 99999;
         }
 
         String label = intent.getStringExtra("label");

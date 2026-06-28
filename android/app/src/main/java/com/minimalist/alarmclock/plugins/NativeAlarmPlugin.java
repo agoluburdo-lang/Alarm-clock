@@ -67,6 +67,8 @@ public class NativeAlarmPlugin extends Plugin {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
         Intent intent = new Intent(context, AlarmReceiver.class);
+        intent.setAction("com.minimalist.alarmclock.ALARM_TRIGGER_" + id);
+        intent.setData(android.net.Uri.parse("alarm://" + id));
         intent.putExtra("id", id);
         intent.putExtra("label", label);
 
@@ -150,6 +152,8 @@ public class NativeAlarmPlugin extends Plugin {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
         Intent intent = new Intent(context, AlarmReceiver.class);
+        intent.setAction("com.minimalist.alarmclock.ALARM_TRIGGER_" + id);
+        intent.setData(android.net.Uri.parse("alarm://" + id));
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;

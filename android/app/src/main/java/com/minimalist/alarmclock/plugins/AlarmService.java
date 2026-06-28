@@ -67,7 +67,20 @@ public class AlarmService extends Service {
             return START_NOT_STICKY;
         }
 
-        int id = intent.getIntExtra("id", 0);
+        int id = -1;
+        if (intent.hasExtra("id")) {
+            Object idObj = intent.getExtras().get("id");
+            if (idObj instanceof Number) {
+                id = ((Number) idObj).intValue();
+            } else if (idObj instanceof String) {
+                try {
+                    id = Integer.parseInt((String) idObj);
+                } catch (Exception e) {}
+            }
+        }
+        if (id == -1 || id == 0) {
+            id = 99999;
+        }
         String label = intent.getStringExtra("label");
 
         // 1. Build notification & start foreground IMMEDIATELY to satisfy system requirement
@@ -130,10 +143,19 @@ public class AlarmService extends Service {
 
         Notification notification = builder.build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-        } else {
-            startForeground(id, notification);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            } else {
+                startForeground(id, notification);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to startForeground with mediaPlayback type, trying fallback", e);
+            try {
+                startForeground(id, notification);
+            } catch (Exception ex) {
+                Log.e(TAG, "Failed to startForeground fallback", ex);
+            }
         }
     }
 
