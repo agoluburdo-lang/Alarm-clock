@@ -144,12 +144,10 @@ public class AlarmService extends Service {
         Notification notification = builder.build();
 
         try {
-            if (Build.VERSION.SDK_INT >= 34) { // Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-                // ServiceInfo.FOREGROUND_SERVICE_TYPE_ALARM = 4
-                startForeground(id, notification, 4);
-            } else if (Build.VERSION.SDK_INT >= 29) { // Build.VERSION_CODES.Q
-                // ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 2
-                startForeground(id, notification, 2);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_ALARM);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
             } else {
                 startForeground(id, notification);
             }
