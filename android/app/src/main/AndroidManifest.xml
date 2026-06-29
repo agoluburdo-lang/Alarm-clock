@@ -47,7 +47,7 @@
 
         <service
             android:name=".plugins.AlarmService"
-            android:foregroundServiceType="mediaPlayback"
+            android:foregroundServiceType="alarm|mediaPlayback"
             android:exported="false" />
 
         <receiver
@@ -61,6 +61,7 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_ALARM" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />

@@ -144,13 +144,15 @@ public class AlarmService extends Service {
         Notification notification = builder.build();
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_ALARM);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
             } else {
                 startForeground(id, notification);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to startForeground with mediaPlayback type, trying fallback", e);
+            Log.e(TAG, "Failed to startForeground with specific type, trying fallback", e);
             try {
                 startForeground(id, notification);
             } catch (Exception ex) {
@@ -195,21 +197,21 @@ public class AlarmService extends Service {
         
         try {
             mediaPlayer = new MediaPlayer();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+            } else {
+                mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
+            }
             mediaPlayer.setDataSource(this, alarmUri);
-            mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
             
             // Critical: Set wake mode so the CPU doesn't sleep while playing the alarm
             try {
                 mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
             } catch (Exception e) {
                 Log.e(TAG, "Failed to set wake mode on MediaPlayer", e);
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
             }
 
             mediaPlayer.prepare();
