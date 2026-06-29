@@ -38,7 +38,6 @@
         <activity
             android:name=".plugins.AlarmActivity"
             android:theme="@style/AppTheme.NoActionBar"
-            android:showOnLockScreen="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
